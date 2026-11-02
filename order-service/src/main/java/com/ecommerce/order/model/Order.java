@@ -18,8 +18,9 @@ import java.util.List;
 public class Order {
     @Id
     @GeneratedValue
-    private Long Id;
-    private String status;
+    private Long id;
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
     private String paymentMethod;
     private String deliveryMethod;
     @Embedded
@@ -27,5 +28,5 @@ public class Order {
     private BigDecimal totalAmount;
     @OneToMany(cascade = CascadeType.ALL)
     @JoinColumn(name = "order_id")
-    private List<OrderItem> orderItems;
+    private List<OrderItem> items;
 }

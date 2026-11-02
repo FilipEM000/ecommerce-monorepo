@@ -20,11 +20,17 @@ public class OrderItem {
     @GeneratedValue
     private Long id;
     private Long productId;
-    @Column(name = "order_id", insertable = false, updatable = false)
-    private Long orderId;
     private String productName;
     private BigDecimal unitPrice;
     private Integer quantity;
     @ElementCollection
-    private List<String> selectedConfigurations;
+    private List<SelectedConfiguration> configurations;
+
+    public BigDecimal getTotalItemPrice() {
+        BigDecimal extraPrices = configurations.stream()
+                .map(SelectedConfiguration::getAdditionalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return unitPrice.add(extraPrices).multiply(BigDecimal.valueOf(quantity));
+    }
 }
