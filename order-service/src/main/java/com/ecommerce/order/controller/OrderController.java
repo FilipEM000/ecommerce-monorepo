@@ -2,9 +2,12 @@ package com.ecommerce.order.controller;
 
 import com.ecommerce.order.command.CreateOrderCommand;
 import com.ecommerce.order.command.GetPageCommand;
+import com.ecommerce.order.command.UpdateOrderStatusCommand;
 import com.ecommerce.order.dto.ErrorResponse;
 import com.ecommerce.order.dto.OrderDto;
 import com.ecommerce.order.dto.PageDto;
+import com.ecommerce.order.dto.invoice.InvoiceDto;
+import com.ecommerce.order.service.InvoiceService;
 import com.ecommerce.order.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class OrderController {
     private final OrderService orderService;
+    private final InvoiceService invoiceService;
 
     @Operation(summary = "Create order", description = "Places a new order with purchased items, configurations, and customer delivery details.")
     @ApiResponse(responseCode = "201", description = "Order created successfully")
@@ -50,5 +54,29 @@ public class OrderController {
     public OrderDto getById(@PathVariable Long id) {
         log.info("Received request to get order with ID: {}", id);
         return orderService.getOrderById(id);
+    }
+
+    @Operation(summary = "Update order status", description = "Processes an order by transitioning its status according to business workflow rules.")
+    @ApiResponse(responseCode = "200", description = "Order status updated successfully")
+    @ApiResponse(responseCode = "400", description = "Invalid status transition or validation error",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Order not found",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @PatchMapping("/{id}/status")
+    public OrderDto updateStatus(@PathVariable Long id, @RequestBody @Valid UpdateOrderStatusCommand updateOrderStatusCommand) {
+        log.info("Received request to update status of order with ID: {} to {}", id, updateOrderStatusCommand.status());
+        return orderService.updateOrderStatus(id, updateOrderStatusCommand);
+    }
+
+    @Operation(summary = "Generate invoice for order", description = "Generates a sales invoice for a paid or completed order.")
+    @ApiResponse(responseCode = "200", description = "Invoice generated successfully")
+    @ApiResponse(responseCode = "400", description = "Order not eligible for invoice (unpaid or cancelled)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Order not found",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @GetMapping("/{id}/invoice")
+    public InvoiceDto getInvoice(@PathVariable Long id) {
+        log.info("Received request to generate invoice for order with ID: {}", id);
+        return invoiceService.generateInvoice(id);
     }
 }

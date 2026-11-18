@@ -3,8 +3,10 @@ package com.ecommerce.order.service;
 import com.ecommerce.order.command.CreateOrderCommand;
 import com.ecommerce.order.command.CreateOrderItemCommand;
 import com.ecommerce.order.command.GetPageCommand;
+import com.ecommerce.order.command.UpdateOrderStatusCommand;
 import com.ecommerce.order.dto.OrderDto;
 import com.ecommerce.order.dto.PageDto;
+import com.ecommerce.order.exception.InvalidOrderStatusTransitionException;
 import com.ecommerce.order.exception.OrderNotFoundException;
 import com.ecommerce.order.mapper.OrderItemMapper;
 import com.ecommerce.order.mapper.OrderMapper;
@@ -263,4 +265,71 @@ public class OrderServiceTest {
         verify(orderRepository, times(1)).save(any(Order.class));
     }
 
+    @Test
+    void updateOrderStatus_validTransition_orderStatusUpdated() {
+        // GIVEN
+        Long orderId = 1L;
+        CustomerDetails customerDetails = new CustomerDetails(
+                "test_first_name",
+                "test_last_name",
+                "test_address",
+                "test_email@example.com",
+                "123456789"
+        );
+        Order order = new Order(
+                orderId,
+                OrderStatus.CREATED,
+                "test_payment_method",
+                "test_delivery_method",
+                customerDetails,
+                new BigDecimal("2200.00"),
+                List.of()
+        );
+        UpdateOrderStatusCommand command = new UpdateOrderStatusCommand(OrderStatus.PAID);
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // WHEN
+        OrderDto result = orderService.updateOrderStatus(orderId, command);
+
+        // THEN
+        Assertions.assertAll(
+                () -> Assertions.assertNotNull(result),
+                () -> Assertions.assertEquals(orderId, result.id()),
+                () -> Assertions.assertEquals(OrderStatus.PAID.name(), result.status()),
+                () -> Assertions.assertEquals("test_payment_method", result.paymentMethod()),
+                () -> Assertions.assertEquals("test_delivery_method", result.deliveryMethod()),
+                () -> Assertions.assertEquals(new BigDecimal("2200.00"), result.totalAmount())
+        );
+        verify(orderRepository, times(1)).findById(orderId);
+        verify(orderRepository, times(1)).save(any(Order.class));
+    }
+    @Test
+    void updateOrderStatus_invalidTransition_invalidOrderStatusTransitionExceptionThrown() {
+        // GIVEN
+        Long orderId = 1L;
+        CustomerDetails customerDetails = new CustomerDetails(
+                "test_first_name",
+                "test_last_name",
+                "test_address",
+                "test_email@example.com",
+                "123456789"
+        );
+        Order order = new Order(
+                orderId,
+                OrderStatus.PAID,
+                "test_payment_method",
+                "test_delivery_method",
+                customerDetails,
+                new BigDecimal("2200.00"),
+                List.of()
+        );
+        UpdateOrderStatusCommand command = new UpdateOrderStatusCommand(OrderStatus.CREATED);
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        // WHEN & THEN
+        assertThatExceptionOfType(InvalidOrderStatusTransitionException.class)
+                .isThrownBy(() -> orderService.updateOrderStatus(orderId, command));
+        verify(orderRepository, times(1)).findById(orderId);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
 }

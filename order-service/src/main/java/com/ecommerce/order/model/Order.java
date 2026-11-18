@@ -1,5 +1,6 @@
 package com.ecommerce.order.model;
 
+import com.ecommerce.order.exception.InvalidOrderStatusTransitionException;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -29,4 +30,11 @@ public class Order {
     @OneToMany(cascade = CascadeType.ALL)
     @JoinColumn(name = "order_id")
     private List<OrderItem> items;
+
+    public void changeStatus(OrderStatus newStatus) {
+        if (!this.status.canTransitionTo(newStatus)) {
+            throw new InvalidOrderStatusTransitionException("Cannot change order status from " + this.status + " to " + newStatus);
+        }
+        this.status = newStatus;
+    }
 }
