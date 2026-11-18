@@ -2,6 +2,7 @@ package com.ecommerce.order.service;
 
 import com.ecommerce.order.command.CreateOrderCommand;
 import com.ecommerce.order.command.GetPageCommand;
+import com.ecommerce.order.command.UpdateOrderStatusCommand;
 import com.ecommerce.order.dto.OrderDto;
 import com.ecommerce.order.dto.PageDto;
 import com.ecommerce.order.exception.OrderNotFoundException;
@@ -53,10 +54,24 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderDto getOrderById(Long id) {
         log.info("Process of fetching order with ID: {} started", id);
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new OrderNotFoundException(id));
+        Order order = findOrderById(id);
         log.info("Process of fetching order completed successfully");
         return orderMapper.toDto(order);
+    }
+
+    @Transactional
+    public OrderDto updateOrderStatus(Long id, UpdateOrderStatusCommand updateOrderStatusCommand) {
+        log.info("Process of updating order status with ID: {} to {} started", id, updateOrderStatusCommand.status());
+        Order order = findOrderById(id);
+        order.changeStatus(updateOrderStatusCommand.status());
+        Order saved = orderRepository.save(order);
+        log.info("Order status with ID: {} successfully updated to {}", id, updateOrderStatusCommand.status());
+        return orderMapper.toDto(saved);
+    }
+
+    private Order findOrderById(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException(id));
     }
 
 }

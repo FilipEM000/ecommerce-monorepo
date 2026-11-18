@@ -3,14 +3,19 @@ package com.ecommerce.order.controller;
 import com.ecommerce.order.command.CreateOrderCommand;
 import com.ecommerce.order.command.CreateOrderItemCommand;
 import com.ecommerce.order.command.GetPageCommand;
+import com.ecommerce.order.command.UpdateOrderStatusCommand;
 import com.ecommerce.order.dto.CustomerDetailsDto;
 import com.ecommerce.order.dto.OrderDto;
 import com.ecommerce.order.dto.OrderItemDto;
 import com.ecommerce.order.dto.PageDto;
+import com.ecommerce.order.dto.invoice.InvoiceDto;
+import com.ecommerce.order.dto.invoice.InvoiceItemDto;
+import com.ecommerce.order.dto.invoice.SellerDto;
 import com.ecommerce.order.exception.OrderNotFoundException;
 import com.ecommerce.order.model.CustomerDetails;
 import com.ecommerce.order.model.OrderStatus;
 import com.ecommerce.order.model.SelectedConfiguration;
+import com.ecommerce.order.service.InvoiceService;
 import com.ecommerce.order.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -42,6 +48,9 @@ public class OrderControllerTest {
 
     @MockitoBean
     OrderService orderService;
+
+    @MockitoBean
+    InvoiceService invoiceService;
 
     @Test
     void getAll_correctData_pageDtoReturned() throws Exception {
@@ -262,5 +271,82 @@ public class OrderControllerTest {
                 .andExpect(jsonPath("$.items[0].configurations[0].value").value("test_value"))
                 .andExpect(jsonPath("$.items[0].configurations[0].additionalPrice").value(100.00));
         verify(orderService, times(1)).createOrder(any(CreateOrderCommand.class));
+    }
+
+    @Test
+    void updateStatus_correctData_orderReturned() throws Exception {
+        // GIVEN
+        Long orderId = 1L;
+        UpdateOrderStatusCommand command = new UpdateOrderStatusCommand(OrderStatus.PAID);
+        CustomerDetailsDto customerDetailsDto = new CustomerDetailsDto(
+                "test_first_name",
+                "test_last_name",
+                "test_address",
+                "test_email@example.com",
+                "123456789"
+        );
+        OrderDto orderDto = new OrderDto(
+                orderId,
+                OrderStatus.PAID.name(),
+                "test_payment_method",
+                "test_delivery_method",
+                customerDetailsDto,
+                new BigDecimal("2200.00"),
+                List.of()
+        );
+        when(orderService.updateOrderStatus(eq(orderId), any(UpdateOrderStatusCommand.class)))
+                .thenReturn(orderDto);
+
+        // WHEN & THEN
+        mockMvc.perform(patch("/orders/{id}/status", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(command)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.status").value("PAID"));
+        verify(orderService, times(1)).updateOrderStatus(eq(orderId), any(UpdateOrderStatusCommand.class));
+    }
+
+    @Test
+    void getInvoice_paidOrder_invoiceReturned() throws Exception {
+        // GIVEN
+        Long orderId = 1L;
+        CustomerDetailsDto buyer = new CustomerDetailsDto(
+                "test_first_name",
+                "test_last_name",
+                "test_address",
+                "test_email@example.com",
+                "123456789"
+        );
+        InvoiceItemDto item = new InvoiceItemDto(
+                "test_product_name",
+                2,
+                new BigDecimal("1000.00"),
+                new BigDecimal("2200.00")
+        );
+        InvoiceDto invoiceDto = new InvoiceDto(
+                "INV/2026/1",
+                LocalDate.now(),
+                SellerDto.defaultSeller(),
+                buyer,
+                List.of(item),
+                new BigDecimal("2200.00"),
+                "test_payment_method"
+        );
+        when(invoiceService.generateInvoice(orderId)).thenReturn(invoiceDto);
+
+        // WHEN & THEN
+        mockMvc.perform(get("/orders/{id}/invoice", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invoiceNumber").value("INV/2026/1"))
+                .andExpect(jsonPath("$.totalAmount").value(2200.00))
+                .andExpect(jsonPath("$.paymentMethod").value("test_payment_method"))
+                .andExpect(jsonPath("$.seller.companyName").value("E-Commerce"))
+                .andExpect(jsonPath("$.buyer.firstName").value("test_first_name"))
+                .andExpect(jsonPath("$.items[0].productName").value("test_product_name"))
+                .andExpect(jsonPath("$.items[0].quantity").value(2))
+                .andExpect(jsonPath("$.items[0].unitPrice").value(1000.00))
+                .andExpect(jsonPath("$.items[0].totalPrice").value(2200.00));
+        verify(invoiceService, times(1)).generateInvoice(orderId);
     }
 }
